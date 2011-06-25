@@ -109,6 +109,9 @@ void MainWindow::on_ui_estopButton_clicked(bool)
     UserProgram::instance()->stop();
     // hide estop button
     //ui_estopButton->hide();
+    // kill Java (CBCJVM) programs
+    system("killall java");
+    system("killall jamvm");
 }
 
 void MainWindow::userProgramStateChange(int state)
