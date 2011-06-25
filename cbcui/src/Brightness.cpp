@@ -30,14 +30,14 @@
 
 Brightness::Brightness(QWidget *parent) :
     Page(parent),
-    m_settings("/mnt/user/cbc_v2.config",QSettings::NativeFormat),
+    m_settings("/mnt/kiss/config/cbc_v2.config",QSettings::NativeFormat),
     m_mouseUpdate(this),
     m_dimmer(this),
     m_dimmed(true)
 {
     setupUi(this);
 
-    m_dimAfter = m_settings.value(DIM_AFTER_KEY, 1).toInt();        // set dim delay value
+    m_dimAfter = m_settings.value(DIM_AFTER_KEY, 3).toInt();        // set dim delay value
     m_brightness = m_settings.value(BRIGHTNESS_KEY, 500).toInt();   // brightness values range from 0-512
     m_dimOff = m_settings.value(DIM_OFF_KEY,false).toBool();            // when screen goes dim it is turned off
     m_settings.sync();

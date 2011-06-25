@@ -25,6 +25,8 @@
 #include "Page.h"
 
 #include "CreateStatus.h"
+#include "Serial/SerialPage.h"
+#include "Wireless/Wireless.h"
 
 class Utilities : public Page, private Ui::Utilities
 {
@@ -35,7 +37,9 @@ public:
     ~Utilities();
 
 private:
-    CreateStatus m_createStatus;
+    CreateStatus    m_createStatus;
+    SerialPage      m_serialPage;
+    Wireless        m_wireless;
 };
 
 #endif

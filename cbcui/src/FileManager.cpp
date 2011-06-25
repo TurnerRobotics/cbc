@@ -124,13 +124,6 @@ FileManager::~FileManager()
 {
 }
 
-bool FileManager::isUSBMounted()
-{
-    QFileInfo info("/mnt/browser/usb");
-
-    return info.exists();
-}
-
 void FileManager::on_ui_directoryBrowser_clicked(const QModelIndex &index)
 {
     m_index = index;
@@ -148,11 +141,6 @@ void FileManager::updateGUI()
     QString indexName = m_dir.filePath(m_index);
     ui_directoryBrowser->setCurrentIndex(m_index);
 
-    if(this->isUSBMounted())
-        ui_mountButton->setText("Unmnt. USB");
-    else
-        ui_mountButton->setText("Mount USB");
-
     // Directory user interface setup
     if(m_dir.isDir(m_index)) {
         ui_actionButton->setText("Open");
@@ -161,7 +149,7 @@ void FileManager::updateGUI()
 
         if(indexName == DEFAULT_PATH ||
            indexName == INTERNAL_USER_PATH ||
-           indexName == USB_USER_PATH ||
+           indexName.startsWith(USB_USER_PATH) ||
            indexName.endsWith("."))
         {
             // ui_copyButton->hide();   // uncomment to allow copy
@@ -188,7 +176,7 @@ void FileManager::updateGUI()
             ui_actionButton->show();
             ui_stopButton->show();
         }
-        else if(filename == "userhook0")
+        else if(filename == "CBC_interface")
         {
             ui_actionButton->setText("Install");
             ui_actionButton->show();
@@ -201,6 +189,7 @@ void FileManager::updateGUI()
     }
 }
 
+// moves the file browser to the default CBC home 
 void FileManager::on_ui_homeButton_clicked()
 {
     m_index = m_dir.index(DEFAULT_PATH);
@@ -211,29 +200,41 @@ void FileManager::on_ui_homeButton_clicked()
     updateGUI();
 }
 
+bool FileManager::isUSBMounted()
+{
+    QFileInfo info(USB_USER_PATH);
+
+    return info.exists();
+}
+
+// mounts and unmounts the external usb stick
 void FileManager::on_ui_mountButton_clicked()
 {
     QProcess mount;
 
-    if(!this->isUSBMounted()){
-        mount.start("/mnt/kiss/usercode/mount-usb");
+    if(!this->isUSBMounted())
+    {
+        mount.start(QString("/mnt/kiss/usercode/mount-usb ").append(USB_USER_PATH));
         mount.waitForFinished();
 
         if(mount.exitCode()) return;    // don't change gui if mount fails
 
         m_index = m_dir.index(USB_USER_PATH);
+        ui_mountButton->setText("Unmnt. USB");
     }
     else{
-        if(m_dir.filePath(m_index).startsWith(USB_USER_PATH)){
+        if(m_dir.filePath(m_index).startsWith(USB_USER_PATH))
+        {
             m_index = m_dir.index(DEFAULT_PATH);
             ui_directoryBrowser->setRootIndex(m_index);
             ui_directoryBrowser->setCurrentIndex(m_index);
             m_dir.setFilter(QDir::AllEntries | QDir::NoDotAndDotDot);
         }
-        mount.start("/mnt/kiss/usercode/umount-usb");
+        mount.start(QString("/mnt/kiss/usercode/umount-usb ").append(USB_USER_PATH));
         mount.waitForFinished();
 
         if(mount.exitCode()) return;    // don't change gui if unmount fails
+        ui_mountButton->setText("Mount USB");
 
         QProcess::startDetached("btplay /mnt/kiss/sounds/disconnected.wav");
     }
@@ -241,9 +242,10 @@ void FileManager::on_ui_mountButton_clicked()
     this->updateGUI();
 }
 
+// determines what to do with the currently highlighted index when the action button is pressed
 void FileManager::on_ui_actionButton_clicked()
 {
-    if(m_dir.isDir(m_index)){
+    if(m_dir.isDir(m_index)){	// selected index is a directory
         QString path = m_dir.fileInfo(m_index).canonicalFilePath();
 
         if(path == DEFAULT_PATH)
@@ -254,9 +256,11 @@ void FileManager::on_ui_actionButton_clicked()
         ui_directoryBrowser->setRootIndex(m_dir.index(path));
         m_index = m_dir.index(path);
     }
-    else{
+    else{	// selected index is a file
         QFileInfo fileInfo = m_dir.fileInfo(m_index);
         //QString filePath = m_dir.filePath(m_index);
+		
+		// file is a c program
         if(fileInfo.suffix() == "c"){
 
             // if the file to compile is on the external usb, copy it to the internal storage
@@ -283,6 +287,7 @@ void FileManager::on_ui_actionButton_clicked()
             QProcess::startDetached("aplay /mnt/kiss/sounds/compiling.wav");
             m_compiler.compileFile(fileInfo.absoluteFilePath());
         }
+		// file is a sound .wav or .mp3
         else if(fileInfo.fileName().endsWith(".wav",Qt::CaseInsensitive) || fileInfo.fileName().endsWith(".mp3",Qt::CaseInsensitive)){
             QString soundFile = fileInfo.absoluteFilePath();
             soundFile.replace(" ","\\ ");
@@ -290,19 +295,29 @@ void FileManager::on_ui_actionButton_clicked()
             qWarning("%s",qPrintable(soundFile));
             QProcess::startDetached(soundFile.toLocal8Bit());
         }
-        else if(fileInfo.fileName() == "userhook0"){
+// file is a CBC_interface update file
+        else if(fileInfo.fileName() == "CBC_interface"){
 
             int ret = QMessageBox::warning(this,
-                                           "Update Userhook0",
+                                           "Update CBC Interface",
                                            "This will take a few minutes!\nDo not unplug USB key.",
                                            QMessageBox::Cancel | QMessageBox::Ok,
                                            QMessageBox::Cancel);
 
             if(ret == QMessageBox::Ok){
-                QFile upgradeFile("/psp/rfs1/upgrade");
+                QFile upgradeFile("/psp/kiss_upgrade");
                 if(upgradeFile.open(QIODevice::WriteOnly | QIODevice::Text))
                 {
-                    upgradeFile.write(fileInfo.absoluteFilePath().remove("/browser").toLocal8Bit());
+                    QProcess updateFeatures;
+                    // run the CBC Interface file to get all new features it includes
+                    updateFeatures.start(fileInfo.absoluteFilePath().append(" --features"));
+                    updateFeatures.waitForFinished();
+                    // save the features names
+                    QString featureString(updateFeatures.readAllStandardOutput());
+
+                    // prepend the location of the interface file to the update arguments
+                    featureString.prepend(fileInfo.absoluteFilePath().remove("/browser"));
+                    upgradeFile.write(featureString.toLocal8Bit());
                     upgradeFile.close();
                     ::system("reboot"); // reboot the cbc to install
                 }
@@ -312,11 +327,14 @@ void FileManager::on_ui_actionButton_clicked()
     this->updateGUI();
 }
 
+// stop playing sound file
 void FileManager::on_ui_stopButton_clicked()
 {
     ::system("echo stop > /tmp/.btplay-cmdin");
 }
 
+// copy button opens the copy dialog defined at the top of this file
+// allows the user to copy the currently selected index to the usb stick
 void FileManager::on_ui_copyButton_clicked()
 {
     QString fromPath = m_dir.filePath(ui_directoryBrowser->currentIndex());
@@ -325,12 +343,20 @@ void FileManager::on_ui_copyButton_clicked()
     cpDialog.exec();
 }
 
+// deletes the currently selected index item, assuming it is not being used ie. program file
 void FileManager::on_ui_deleteButton_clicked()
 {
-    QString fPath = m_dir.filePath(ui_directoryBrowser->currentIndex());
-    m_index = ui_directoryBrowser->indexAt(QPoint(1,1));
-    fPath.replace(" ",QString("\\ "));
-    QString deleteString("rm -rf " + fPath);
+    int ret = QMessageBox::warning(this,
+                                   "Delete",
+                                   "Do you want to Delete the file?",
+                                   QMessageBox::Cancel | QMessageBox::Ok,
+                                   QMessageBox::Cancel);
+    if(ret == QMessageBox::Ok){
+        QString fPath = m_dir.filePath(ui_directoryBrowser->currentIndex());
+        m_index = ui_directoryBrowser->indexAt(QPoint(1,1));
+        fPath.replace(" ",QString("\\ "));
+        QString deleteString("rm -rf " + fPath);
 
-    ::system(deleteString.toLocal8Bit());
+        ::system(deleteString.toLocal8Bit());
+    }
 }

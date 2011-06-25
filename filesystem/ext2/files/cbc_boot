@@ -1,0 +1,189 @@
+#!/bin/sh
+
+export LD_LIBRARY_PATH=/lib
+CBC_DEBUG=0
+KISS=/mnt/kiss
+USER=/mnt/user
+EXTUSB=/mnt/extusb
+VERSION=`cat $KISS/FIRMWARE_VERSION`
+
+if [ "$1" = "--version" ]; then
+  echo $VERSION
+  exit 0
+fi
+
+BROWSER_UPGRADE=""
+if [ -e /psp/kiss_upgrade ]; then
+	BROWSER_UPGRADE=`cat /psp/kiss_upgrade`
+fi
+
+mkdir -p $EXTUSB
+# make sure a full reflash is possible with the CBC_interface on the root
+# of a usb drive and check for browser upgrades on the external usb
+for dev in sdb sdc sdd;
+do
+	# mount and look for a CBC_interface file on it's root
+        mount /dev/${dev}1 $EXTUSB -t vfat -o ro
+        if [ -e $EXTUSB/CBC_interface ]; then
+                $EXTUSB/CBC_interface --upgrade &
+		exit 0
+	# Check of an update from the cbc file browser
+        # if the string is not null and the upgrade exists
+	# first word in the string ${string%% *} which is the location
+	elif [ -n "$BROWSER_UPGRADE" -a -e ${BROWSER_UPGRADE%% *} ]; then
+                ${BROWSER_UPGRADE} &
+		exit 0
+	fi
+        umount $EXTUSB
+done
+rmdir $EXTUSB
+
+if [ ${CBC_DEBUG} -ge 1 ]; then
+    PRINT=/psp/fb_print    # causes printing to the screen
+	echo "CBC Firmware Version $VERSION" | $PRINT --echo
+else
+    PRINT=echo
+        dd if=$KISS/images/splash_screen.bin of=/dev/fb0
+fi
+
+#######################################
+# Network setup
+#################
+# Set up loopback
+ifconfig lo 127.0.0.1
+
+# Set up wired network
+######################
+echo "Starting wired network driver"
+insmod /drivers/pegasus.ko
+echo "Starting DHCP on eth0"
+udhcpc eth0
+
+# Set up wireless network
+#########################
+echo "Starting wireless network driver" | $PRINT
+#insmod /drivers/rt73.ko
+insmod $KISS/drivers/rt73.ko
+if [ -e $KISS/config/cbc_net_config ]; then
+    echo "Copying network config" | $PRINT
+    cp $KISS/config/cbc_net_config /psp
+fi
+
+WIFI=`cat /proc/net/wireless | sed -n 3p`
+WIFI=${WIFI%%:*}
+if [ -n "${WIFI}" ]; then
+    if [ -e /psp/cbc_net_config ]; then
+	echo "Starting network" | $PRINT
+	# start the network based on the parameters in the config file
+	#/usr/chumby/scripts/start_network
+	/mnt/kiss/wifi/wifi_start.pl	
+	# print out the ip address it connects to
+	echo `ifconfig rausb0 | grep inet | sed 's/Bcast.*//'` | $PRINT
+	sleep 5
+    else
+	echo "Raising usb network" | $PRINT
+	ifconfig $WIFI up
+    fi
+fi
+
+# sshd
+######
+#echo "Starting sshd" | $PRINT
+#/sbin/sshd
+
+##############################
+# Chumby Hardware driver setup
+##############################
+# Touch screen and sensors
+hwversion=`/usr/chumby/scripts/chumby_version -h`
+echo "Chumby hardware version $hwversion" | $PRINT --echo
+if [ "$hwversion" = "3.8" ]; then
+    # touch screen
+    insmod /drivers/chumby-tsc2100.ko version038=1
+
+    # chumby sensor driver
+    insmod /drivers/chumby_sense1.ko version038=1
+else
+    # touch screen
+    insmod /drivers/chumby-tsc2100.ko
+
+    # chumby sensor driver
+    insmod /drivers/chumby_sense1.ko
+fi
+#echo "Disabling touchscreen touchclick"
+echo 0 > /proc/chumby/touchscreen/touchclick
+
+# USB HID: keyboard / mouse
+###########################
+echo "Starting USB HID" | $PRINT
+insmod /drivers/usbhid.ko
+insmod /drivers/chumby_udma.ko
+insmod /drivers/chumby_timer.ko
+mknod /dev/timerx c `cat /proc/devices |awk '/timer/ {print $1}'` 0
+mknod /dev/timerm c `cat /proc/devices |awk '/timer/ {print $1}'` 1
+
+# chumby switch
+mknod /dev/switch c `cat /proc/devices |awk '/switch/ {print $1}'` 0
+
+# chumby udma
+mknod /dev/udma c `cat /proc/devices |awk '/udma/ {print $1}'` 1
+
+# set paranoid boot flag/semaphore
+echo "Clearing paranoid boot flag"
+/bin/eraseall /dev/mtd7
+nandwrite /dev/mtd7 /usr/chumby/msp_00_64k_no_oob.bin 0x70000
+
+# load usb to serial drivers
+echo "Loading USB-SERIAL modules" | $PRINT
+insmod /drivers/usbserial.ko
+insmod /drivers/pl2303.ko
+insmod /drivers/ftdi_sio.ko
+insmod $KISS/drivers/keyspan.ko
+
+echo "Loading CBOB SPI module" | $PRINT
+insmod $KISS/drivers/cbob.ko
+sh $KISS/drivers/mkdev.sh
+
+restore_time
+
+KISS_DEV=/dev/disk/by-label/kissys
+USER_DEV=/dev/disk/by-label/userpart
+
+umount /mnt/user
+echo "Checking USER filesystems..." | $PRINT
+$KISS/drivers/fsck.ext2 -y ${USER_DEV} | $PRINT
+mount /mnt/user
+mkdir -p /mnt/browser/code
+mount --bind /mnt/user/code /mnt/browser/code
+
+#######################
+# Setup audio
+#############
+echo "Enabling audio" | $PRINT
+insmod /drivers/snd-rawmidi.ko
+insmod /drivers/snd-seq-midi.ko
+insmod /drivers/snd-usb-lib.ko
+insmod /drivers/snd-hwdep.ko
+insmod /drivers/snd-usb-audio.ko
+
+echo "Startup btplay daemon" | $PRINT
+btplayd </dev/null >/dev/null 2>&1 &
+sleep 2
+chmod a+w /tmp/.btplay-cmdin
+btplay $KISS/sounds/mellow.wav
+sleep 2
+btplay $KISS/sounds/sysInit.wav
+
+save_time
+
+echo "" | $PRINT --echo
+echo "Boot complete" | $PRINT --echo
+
+if [ ${CBC_DEBUG} -gt 1 ]; then
+	echo "Trying to start control panel" | $PRINT
+	/usr/chumby/scripts/start_control_panel
+fi
+if [ ${CBC_DEBUG} -eq 0 ]; then
+    $KISS/gui/startup.sh &
+fi
+exit

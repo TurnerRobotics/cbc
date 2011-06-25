@@ -43,13 +43,18 @@ HEADERS += src/MainWindow.h \
     src/UserProgram.h \
     src/Compiler.h \
     src/GraphWidget.h \
-    src/Keypad.h \
     src/MotorTuning.h \
     src/MotorTest.h \
-    src/SerialPort.h \
-    src/SerialServer.h \
     src/Brightness.h \
-    src/Volume.h
+    src/Volume.h \
+    src/Wireless/Wireless.h \
+    src/Wireless/WifiDialog.h \
+    src/Wireless/WifiItem.h \
+    src//Serial/SerialPort.h \
+    src/Serial/SerialServer.h \
+    src/Serial/SerialPage.h \
+    src/Keyboard/QwertyKeypad.h \
+    src/Keyboard/Keypad.h
 FORMS += ui/MainWindow.ui \
     ui/MainMenu.ui \
     ui/Programs.ui \
@@ -73,7 +78,12 @@ FORMS += ui/MainWindow.ui \
     ui/MotorTuning.ui \
     ui/MotorTest.ui \
     ui/Brightness.ui \
-    ui/Volume.ui
+    ui/Volume.ui \
+    ui/Serial.ui \
+    ui/Wireless.ui \
+    ui/QwertyKeypad.ui \
+    ui/WifiItem.ui \
+    ui/WifiDialog.ui
 SOURCES += src/main.cpp \
     src/MainWindow.cpp \
     src/MainMenu.cpp \
@@ -98,18 +108,20 @@ SOURCES += src/main.cpp \
     src/UserProgram.cpp \
     src/Compiler.cpp \
     src/GraphWidget.cpp \
-    src/Keypad.cpp \
     src/MotorTuning.cpp \
     src/MotorTest.cpp \
-    src/SerialPort.cpp \
-    src/SerialServer.cpp \
     src/Brightness.cpp \
-    src/Volume.cpp
+    src/Volume.cpp \
+    src/Wireless/Wireless.cpp \
+    src/Wireless/WifiDialog.cpp \
+    src/Wireless/WifiItem.cpp \
+    src/Serial/SerialPort.cpp \
+    src/Serial/SerialServer.cpp \
+    src/Serial/SerialPage.cpp \
+    src/Keyboard/QwertyKeypad.cpp \
+    src/Keyboard/Keypad.cpp
 
 # Vision
-#FORMS += src/vision/AdjustColorWidget.ui
-#SOURCES += src/vision/AdjustColorWidget.cpp
-#HEADERS += src/vision/AdjustColorWidget.h
 SOURCES += src/vision/Blob.cpp
 HEADERS += src/vision/Blob.h
 SOURCES += src/vision/Camera.cpp

@@ -28,21 +28,33 @@ About::About(QWidget *parent) : Page(parent)
 {
     setupUi(this);
 
-    QFile osVersion("/etc/software_version");
-    QFile swVersion("/mnt/usb/FIRMWARE_VERSION");
-
+	// chumby software version
+	QFile osVersion("/etc/software_version");
     if(osVersion.open(QIODevice::ReadOnly | QIODevice::Text))
-        ui_OSVersion->setText(osVersion.readAll());
+    {
+        m_OSVersion = osVersion.readLine();
+        if(m_OSVersion.endsWith("\n"))
+            m_OSVersion.chop(1);
+        ui_OSVersion->setText(m_OSVersion);
+    }
+	
+	// CBC software version
+	QFile swVersion("/mnt/kiss/FIRMWARE_VERSION");
     if(swVersion.open(QIODevice::ReadOnly | QIODevice::Text))
-        ui_SWVersion->setText(swVersion.readAll());
+    {
+        m_SWVersion = swVersion.readLine();
+        if(m_SWVersion.endsWith("\n"))
+            m_SWVersion.chop(1);
+        ui_SWVersion->setText(m_SWVersion);
+    }
 
+	// BoB software version
     short version = 0;
     int fd = ::open("/dev/cbc/status", O_RDONLY);
     if(fd > 0) {
         ::read(fd, &version, 2);
         ::close(fd);
     }
-
     if(version)
         ui_FWVersion->setText(QString::number(version));
     else

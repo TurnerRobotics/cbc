@@ -19,7 +19,7 @@
  **************************************************************************/
 
 #include "MotorTuning.h"
-#include "Keypad.h"
+#include "Keyboard/Keypad.h"
 #include <QSettings>
 
 MotorTuning::MotorTuning(QWidget *parent) : Page(parent)
@@ -155,22 +155,27 @@ void MotorTuning::on_ui_DivSlider_valueChanged(int value)
 
 void MotorTuning::on_ui_TargetSpeedLine_selectionChanged()
 {
-    Keypad user_keypad(this,-1000,1000);
+    Keypad *user_keypad = Keypad::instance();
+    user_keypad->setRange(-1000,1000);
+    user_keypad->setType(0);
 
     ui_TargetSpeedLine->setStyleSheet("QLineEdit#ui_TargetSpeedLine{background-color:red}");
-    user_keypad.exec();
-    m_targetSpeed = user_keypad.getValue();
+    user_keypad->exec();
+    m_targetSpeed = user_keypad->getValue();
 
     ui_TargetSpeedLine->setStyleSheet("QLineEdit#ui_TargetSpeedLine{background-color:white}");
     ui_TargetSpeedLine->setText(QString::number(m_targetSpeed));
 }
 void MotorTuning::on_ui_TargetPositionLine_selectionChanged()
 {
-    Keypad user_keypad(this,-2000000000,2000000000);
-    ui_TargetPositionLine->setStyleSheet("QLineEdit#ui_TargetPositionLine{background-color:red}");
-    user_keypad.exec();
+    Keypad *user_keypad = Keypad::instance();
+    user_keypad->setRange(-2000000000,2000000000);
+    user_keypad->setType(0);
 
-    m_targetPosition = user_keypad.getValue();
+    ui_TargetPositionLine->setStyleSheet("QLineEdit#ui_TargetPositionLine{background-color:red}");
+    user_keypad->exec();
+
+    m_targetPosition = user_keypad->getValue();
     ui_TargetPositionLine->setStyleSheet("QLineEdit#ui_TargetPositionLine{background-color:white}");
     ui_TargetPositionLine->setText(QString::number(m_targetPosition));
 }
@@ -257,7 +262,7 @@ void MotorTuning::motorCheckBoxes()
 void MotorTuning::readSettings()
 {
     int i;
-    QSettings m_settings("/mnt/user/cbc_v2.config",QSettings::NativeFormat);
+    QSettings m_settings("/mnt/kiss/config/cbc_v2.config",QSettings::NativeFormat);
 
     //qWarning("%s",qPrintable(m_settings.fileName()));
     // reads in the PID settings that have been saved to memory
@@ -278,7 +283,7 @@ void MotorTuning::readSettings()
 
 void MotorTuning::writeSettings(int motor)
 {
-    QSettings m_settings("/mnt/user/cbc_v2.config",QSettings::NativeFormat);
+    QSettings m_settings("/mnt/kiss/config/cbc_v2.config",QSettings::NativeFormat);
 
     m_settings.beginGroup(QString("PIDgainsMotor%1").arg(motor));
     m_settings.setValue("ProportionalMult",PIDgains[0]);
