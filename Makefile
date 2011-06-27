@@ -1,4 +1,4 @@
-QTEMBEDDED_QMAKE=/mnt/kiss/qt/bin/qmake
+QTEMBEDDED_QMAKE=/home/t3hub3rk1tten/cbc/bin/qtmake
 
 all: cbc_interface
 
